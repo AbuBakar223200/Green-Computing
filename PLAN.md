@@ -38,7 +38,7 @@ To mitigate this environmental toll, the "Green AI" movement advocates for effic
 
 However, virtually all existing carbon benchmarking studies operate within hyperscale cloud datacenters using high-end GPUs (e.g., NVIDIA A100/H100 clusters). Millions of students, academic researchers, and software engineers run models locally on **commodity consumer laptops and workstations** powered by integrated graphics and multicore CPUs. There exists almost no empirical guidance identifying:
 - Which model size is the true "carbon-optimal sweet spot" for a given NLP task type?
-- How much actual carbon (in $\text{gCO}_2\text{eq}$) is saved when deploying a quantized 1.5B or 3B model instead of an over-parameterized 14B model on everyday consumer hardware?
+- How much actual carbon (in $\text{gCO}_2\text{eq}$) is saved when deploying a quantized 1.5B or 3B model instead of an over-parameterized 7B or 8B model on everyday consumer hardware?
 
 ---
 
@@ -52,7 +52,7 @@ Reviewers at premier IEEE/ACM conferences demand that a paper solves explicit, d
 
 ### Literature Gap 2: Absence of Task-Granularity Carbon Mapping (The "One-Size-Fits-All" Flaw)
 * **What prior literature does:** Existing benchmarks (e.g., SLM-Bench, GLUE, MMLU) report task performance solely through accuracy metrics (Pass@1, ROUGE, F1), treating computational energy as a flat constant.
-* **The Gap:** Prior work fails to map **which downstream task difficulties** justify larger parameter footprints. For instance, does a simple sentiment classification task require a 7B or 14B model when an 0.5B or 1.5B model can execute it at 10× lower energy with near-identical accuracy? The task-to-carbon Pareto frontier has never been systematically mapped for local inference.
+* **The Gap:** Prior work fails to map **which downstream task difficulties** justify larger parameter footprints. For instance, does a simple sentiment classification task require a 7B or 8B model when an 0.5B or 1.5B model can execute it at 10× lower energy with near-identical accuracy? The task-to-carbon Pareto frontier has never been systematically mapped for local inference.
 
 ### Literature Gap 3: Missing Empirical Quantization Carbon Measurement on Edge CPUs
 * **What prior literature does:** Quantization papers (e.g., Dettmers et al., Frantar et al.) thoroughly evaluate memory footprint and perplexity loss under 4-bit (Q4) and 8-bit (Q8) compression.
@@ -76,7 +76,7 @@ Reviewers at premier IEEE/ACM conferences demand that a paper solves explicit, d
 
 The paper will be structured around answering three core empirical questions:
 
-* **RQ1 (Energy Scalability):** How does real hardware energy consumption ($\text{kWh}$ and $\text{Wh/1k tokens}$) scale relative to parameter size (0.5B $\rightarrow$ 14B) when running inference locally on consumer CPU architectures?
+* **RQ1 (Energy Scalability):** How does real hardware energy consumption ($\text{kWh}$ and $\text{Wh/1k tokens}$) scale relative to parameter size (0.5B $\rightarrow$ 8B) when running inference locally on consumer CPU architectures?
 * **RQ2 (The Accuracy-Carbon Pareto Frontier):** Across four diverse downstream NLP tasks (sentiment classification, question answering, summarization, and code generation), where does the Pareto-optimal frontier sit between task accuracy and carbon footprint?
 * **RQ3 (The Green Routing Advantage):** How much cumulative carbon ($\text{kgCO}_2\text{eq}$) and electrical cost can an organization or user in a developing economy save annually by implementing an SLM-first task-complexity routing strategy instead of defaulting to mid-to-large models?
 
@@ -98,7 +98,7 @@ The paper will be structured around answering three core empirical questions:
 │ 3. Llama-3.2 (3B)        │               │ T3: CNN/DailyMail (Summ.) │
 │ 4. Phi-3.5-mini (3.8B)   │               │ T4: HumanEval (Code Gen)  │
 │ 5. Mistral (7B)          │               │                           │
-│ 6. Qwen-2.5 (14B)        │               │ Samples: N=50 per task    │
+│ 6. Llama-3.1 (8B)        │               │ Samples: N=50 per task    │
 └──────────────┬───────────┘               └─────────────┬─────────────┘
                │                                         │
                └────────────────────┬────────────────────┘
@@ -137,8 +137,8 @@ We provide the first open, reproducible dataset of fine-grained energy consumpti
 
 ### Contribution 2: Empirical Task-Complexity vs. Carbon Pareto Frontier
 We demonstrate that task complexity dictates carbon necessity:
-- **Low-complexity tasks (Classification):** A 1.5B parameter model achieves $\ge 95\%$ of the 14B model's accuracy while emitting $8\times$ to $10\times$ less carbon.
-- **Medium-complexity tasks (QA & Summarization):** 3B–3.8B models form the optimal knee of the Pareto curve, delivering near-frontier coherence without the steep exponential energy penalty of 7B/14B models.
+- **Low-complexity tasks (Classification):** A 1.5B parameter model achieves $\ge 95\%$ of the 8B model's accuracy while emitting $8\times$ to $10\times$ less carbon.
+- **Medium-complexity tasks (QA & Summarization):** 3B–3.8B models form the optimal knee of the Pareto curve, delivering near-frontier coherence without the steep exponential energy penalty of 7B/8B models.
 - **High-complexity tasks (Code Generation):** Identifies the exact threshold where model scaling becomes environmentally justified.
 
 ### Contribution 3: Quantified Impact on Developing Grids & Green Edge Computing
@@ -171,7 +171,7 @@ We translate raw kilowatt-hours into concrete environmental and economic savings
 │ Day 1   │ Setup & Preparation     │ Cache 4 datasets, pull SLMs        │
 │ Day 2   │ Pilot Telemetry Check   │ Verify 0.5B runs, validate CSV     │
 │ Day 3   │ SLM Experiments         │ Run 0.5B, 1.5B, 3B, 3.8B (3 trials)│
-│ Day 4   │ Large Model Runs        │ Run 7B & 14B (overnight batch)     │
+│ Day 4   │ Mid-Size Model Runs     │ Run 7B & 8B (3 trials)             │
 │ Day 5   │ Data Analysis & Plots   │ Generate Pareto plots & LaTeX tabs │
 │ Day 6   │ Intro & Related Work    │ Draft §1 and §2 with intro-drafter │
 │ Day 7   │ Methodology & Results   │ Draft §3, §4, §5 with paper-writer │

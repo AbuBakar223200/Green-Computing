@@ -6,7 +6,7 @@ Write-Host " Starting GreenInfer Automated Benchmark Suite" -ForegroundColor Gre
 Write-Host " Target Hardware: AMD Ryzen 5 5500U (16GB RAM, Windows 11)" -ForegroundColor Green
 Write-Host "==========================================================" -ForegroundColor Green
 
-$models = @("qwen2.5:0.5b", "qwen2.5:1.5b", "llama3.2:3b", "phi3.5:latest", "mistral:7b")
+$models = @("qwen2.5:0.5b", "qwen2.5:1.5b", "llama3.2:3b", "phi3.5:latest", "mistral:7b", "llama3.1:8b")
 $tasks = @("classification", "qa", "summarization", "code")
 
 # Test 1 sample first to verify pipeline

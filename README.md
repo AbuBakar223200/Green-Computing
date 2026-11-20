@@ -28,3 +28,18 @@ This repository contains the complete research planning, related literature surv
 - **OS:** Windows 11 (64-bit)
 - **Telemetry:** CodeCarbon 3.3.2 with Windows Energy Meter Interface (RAPL)
 - **Runtime:** Ollama Local REST API
+
+---
+
+## 🤖 Evaluated Model Spectrum (0.5B to 8B)
+
+All 6 candidate models operate completely within physical RAM (< 6 GB model footprints) without memory paging:
+
+| Tier | Model | Parameters | Quantization | Est. Memory Footprint |
+|---|---|---|---|---|
+| **Ultra-Compact** | `qwen2.5:0.5b` | 0.5B | Q4_K_M | ~0.5 GB |
+| **Compact SLM** | `qwen2.5:1.5b` | 1.5B | Q4_K_M | ~1.2 GB |
+| **Small Model** | `llama3.2:3b` | 3.0B | Q4_K_M | ~2.0 GB |
+| **Efficient Reasoning** | `phi3.5:latest` | 3.8B | Q4_K_M | ~2.5 GB |
+| **Mid-Size Standard** | `mistral:7b` | 7.0B | Q4_K_M | ~4.5 GB |
+| **Flagship Baseline** | `llama3.1:8b` | 8.0B | Q4_K_M | ~5.0 GB |
