@@ -1,0 +1,9 @@
+# Core dependencies for GreenInfer benchmark
+codecarbon>=3.0.0
+datasets>=2.19.0
+requests>=2.31.0
+pandas>=2.2.0
+matplotlib>=3.8.0
+rouge-score>=0.1.2
+tqdm>=4.66.0
+psutil>=5.9.0
