@@ -97,76 +97,143 @@ Results will first compare model sizes **within each device**. Cross-device anal
 
 ## 6. Proposed Technical Methodology
 
-### 6.1 Experimental Devices
+### 6.1 Scope and Generalization Boundary
+
+GreenInfer is a **paired case study of two complete consumer hardware–software stacks**, not a population-level comparison of all Windows and macOS systems. Its conclusions will apply to the tested `ABU_BAKAR_LAP` and M1 MacBook Air under the documented configurations. Differences cannot be attributed to the operating system alone because processor architecture, memory organization, acceleration backend, cooling, and power management also differ. Accordingly, the paper will describe observed device-level differences and will not claim that one operating-system family is universally more efficient.
+
+### 6.2 Experimental Devices
 
 | Device ID | Hardware | Memory | Operating System | Notes |
 |:---|:---|:---|:---|:---|
-| **`ABU_BAKAR_LAP`** | AMD Ryzen 5 5500U, 6 cores/12 threads, 2.10 GHz | 16 GB RAM | Windows 11 | Record OS build, power mode, and actual Ollama backend before testing. |
-| **`MACBOOK_AIR_M1`** | MacBook Air `MacBookAir10,1` (`MGN63ZP/A`), Apple M1, 8 cores (4 performance + 4 efficiency) | 8 GB unified memory | macOS | Record the exact macOS version, power mode, swap use, and actual Ollama backend before testing. |
+| **`ABU_BAKAR_LAP`** | AMD Ryzen 5 5500U, 6 cores/12 threads, 2.10 GHz | 16 GB RAM | Windows 11 | Record OS build, power mode, memory configuration, and actual inference backend before testing. |
+| **`MACBOOK_AIR_M1`** | MacBook Air `MacBookAir10,1` (`MGN63ZP/A`), Apple M1, 8 cores (4 performance + 4 efficiency) | 8 GB unified memory | macOS | Record the exact macOS version, power mode, swap use, and actual inference backend before testing. |
 
 Private identifiers—including serial numbers, device/product IDs, hardware UUIDs, and provisioning UDIDs—will not be collected or published.
 
-### 6.2 Existing Public Benchmark Datasets
+### 6.3 Existing Datasets and Fixed Sample Manifest
 
 GreenInfer will **not create or label a new dataset**. It will download, select, and locally cache samples from four established public benchmarks:
 
-| Task | Existing dataset | Planned sample | Primary quality measure |
+| Task | Existing dataset | Planned measured subset | Primary quality measure |
 |:---|:---|---:|:---|
-| Sentiment classification | SST-2 | 50 | Accuracy |
-| Question answering | SQuAD 2.0 | 50 | Exact Match and token-level F1 |
-| Summarization | CNN/DailyMail | 50 | ROUGE-1/ROUGE-2/ROUGE-L |
-| Code generation | HumanEval | 50 | Pass@1 in an isolated evaluation environment |
+| Sentiment classification | SST-2 | 50, stratified by label | Accuracy and invalid-output rate |
+| Question answering | SQuAD 2.0 | 50, balanced answerable/unanswerable | Official Exact Match and token-level F1 |
+| Summarization | CNN/DailyMail 3.0.0 | 50 complete, length-stratified articles | ROUGE-1/ROUGE-2/ROUGE-Lsum |
+| Code generation | HumanEval | 50 fixed tasks, reported as **HumanEval-50** | Pass@1 in an isolated evaluation environment |
 
-The same cached examples, prompts, references, and evaluation logic will be used on both devices.
+Before any model results are inspected, one fixed random seed will be used to create a sample manifest containing dataset repository/revision, selected example IDs, labels or answerability strata, and SHA-256 checksums. The same manifest, cached examples, prompts, references, and scoring logic will be used on both devices. SQuAD contexts and CNN/DailyMail articles will not be truncated in a way that removes required evidence; examples must fit the predeclared context limit in full. HumanEval completions will be generated during the measured interval but executed afterward in a disposable, network-disabled sandbox with time, memory, process, and filesystem limits.
 
-### 6.3 Model Spectrum
+### 6.4 Primary Matched-Family and Secondary Model Comparisons
 
-| Tier | Model | Parameters | Comparison requirement |
-|:---|:---|---:|:---|
-| Ultra-compact | Qwen-2.5 | 0.5B | Same artifact and quantization on both devices |
-| Compact SLM | Qwen-2.5 | 1.5B | Same artifact and quantization on both devices |
-| Small model | Llama-3.2 | 3B | Same artifact and quantization on both devices |
-| Efficient reasoning | Phi-3.5 Mini | 3.8B | Same artifact and quantization on both devices |
-| Mid-size baseline | Mistral | 7B | Run only if the device completes without unacceptable memory pressure |
-| Large baseline | Llama-3.1 | 8B | Run only if the device completes without unacceptable memory pressure |
+The **primary scaling analysis** will minimize model-family confounding by using one Qwen-2.5 family under one common quantization:
 
-The exact Ollama tag, model digest, quantization, model file size, context limit, output-token limit, and sampling settings will be recorded. If the 8 GB Mac cannot run a 7B or 8B model reliably without heavy swap use, the outcome will be reported as a hardware-feasibility result rather than omitted or represented as a normal run.
+| Primary model | Parameters | Comparison requirement |
+|:---|---:|:---|
+| Qwen-2.5 | 0.5B | Identical model artifact, digest, and quantization on both devices |
+| Qwen-2.5 | 1.5B | Identical model artifact, digest, and quantization on both devices |
+| Qwen-2.5 | 3B | Identical model artifact, digest, and quantization on both devices |
+| Qwen-2.5 | 7B | Subject to the preregistered device-feasibility criteria |
 
-### 6.4 Controlled Execution Protocol
+The intended primary format is the same Q4 quantization on both devices; the exact Ollama tag, model digest, quantization method, and file size will be verified and frozen before data collection. Any change to this common format will be documented before the first measured run.
 
-For every model–task combination:
+A **secondary practical-deployment analysis** may evaluate Llama-3.2 3B, Phi-3.5 Mini 3.8B, Mistral 7B, and Llama-3.1 8B. These heterogeneous models compare candidate deployments, not a causal parameter-scaling law, because architecture, tokenizer, training data, and instruction tuning vary by family. A secondary model that cannot meet the feasibility criteria on a device will be reported as constrained or infeasible rather than silently omitted.
 
-1. Use the same cached dataset sample, prompt template, model artifact, context/output limits, and decoding parameters on both devices.
-2. Run an explicitly documented warm-up before measured trials and apply the same model-cache policy.
-3. Conduct **three measured trials per configuration per device** and report mean, standard deviation, and individual-run data.
-4. Keep each laptop plugged in, use a fixed documented power mode, close unnecessary applications, and record relevant background conditions.
-5. Monitor memory pressure and swap/page-file use. Flag or exclude a trial according to a predefined rule if paging makes it non-comparable.
-6. Record the device ID, OS version/build, Ollama version, compute backend, model digest, quantization, task, trial number, input/output token counts, and timestamps with every observation.
-7. Preserve load failures, out-of-memory events, throttling observations, and infeasible configurations as reported experimental outcomes.
+### 6.5 Controlled Execution Protocol
 
-### 6.5 Measurement and Telemetry
+For every model–task configuration:
+
+1. Use the same sample manifest, prompt template, model artifact, context/output limits, stop sequences, and decoding parameters on both devices.
+2. Record the exact model digest, quantization, template, context size, output-token limit, seed, temperature, top-p/top-k, and repeat settings.
+3. Explicitly load the model and perform a documented unmeasured warm-up before steady-state trials; measure cold-load cost separately if reported.
+4. Conduct **three randomized measured blocks per configuration per device**. Counterbalance run order so model size is not confounded with experiment time or temperature.
+5. Keep each laptop plugged in, stabilize battery charge, use a fixed documented power mode and display/network state, close unnecessary applications, and record relevant background conditions.
+6. Start telemetry only after warm-up, generate and preserve every raw response and API timing, stop telemetry before offline quality scoring, and then explicitly unload the model.
+7. Wait for a predeclared thermal/power settling condition rather than using only a fixed short delay.
+8. Record device ID, OS version/build, runtime and dependency versions, compute backend, Git commit, task, trial, UTC timestamps, token counts, peak memory, swap/page-file delta, and thermal/throttling observations.
+9. Preserve request failures, invalid outputs, load failures, out-of-memory events, and retries as data; do not silently convert them into task scores.
+
+### 6.6 Preregistered Model-Feasibility Criteria
+
+A pilot will set a common per-request timeout and confirm the thresholds below before the full experiment. Each device–model combination will be classified as:
+
+* **Feasible:** the model loads, completes all measured examples after at most one documented retry per transient failure, shows no severe OS memory-pressure state, increases swap/page-file use by less than 512 MB during the measured batch, and does not lose more than 20% generation throughput from the first to the last quartile of requests.
+* **Memory- or thermally constrained:** the workload completes but exceeds the swap/page-file threshold, enters a severe memory-pressure or throttling state, or loses more than 20% sustained throughput.
+* **Infeasible:** the model cannot load, encounters an out-of-memory termination, or completes fewer than 95% of examples within the fixed timeout after the retry rule.
+
+All thresholds, failures, paging, and constrained runs will be reported. In particular, a constrained or infeasible 7B/8B result on the 8 GB MacBook Air is a valid hardware-capacity finding, not missing data.
+
+### 6.7 Measurement and Telemetry Decision
 
 | Category | Metrics / controls |
 |:---|:---|
-| **Runtime** | Ollama Local REST API; actual platform backend and version recorded separately |
-| **Performance** | End-to-end latency, generation duration, prompt/output tokens, tokens per second |
-| **Energy** | Total energy ($\text{kWh}$) and $\text{Wh/1k}$ output tokens, with source and measurement boundary documented |
-| **Carbon** | $\text{gCO}_2\text{eq}$ derived from measured/estimated energy using the same stated Bangladesh grid factor for deployment scenarios |
-| **Task quality** | Accuracy, Exact Match/F1, ROUGE, and HumanEval Pass@1 as appropriate |
-| **System state** | Power mode, plugged-in state, warm-up, cache policy, memory pressure, paging/swap, and thermal/throttling observations |
+| **Runtime** | Same Ollama version where supported; exact platform backend recorded separately |
+| **Performance** | Time to first token, prompt-evaluation duration/throughput, generation duration/throughput, end-to-end latency, median and p95 latency |
+| **Energy** | Gross batch energy, idle-adjusted batch energy, energy/query, Wh/1k output tokens, and Wh/1k total processed tokens |
+| **Carbon** | $\text{gCO}_2\text{eq}$ calculated post hoc from energy using a cited Bangladesh grid factor and sensitivity range |
+| **Task quality** | Accuracy, official SQuAD EM/F1, ROUGE, and sandboxed HumanEval-50 Pass@1 as appropriate |
+| **Reliability** | Failure/retry rate, invalid-output rate, peak memory, paging/swap, thermal pressure, and model feasibility class |
 
-Telemetry will be validated in a pilot on **each** device before the full experiment. The Windows pilot will validate CodeCarbon 3.3.2 with the available Windows EMI source. The macOS pilot will identify and validate the energy source exposed on the M1 system. For both platforms, the paper will disclose whether the value represents CPU/package energy, whole-system energy, or an estimate.
+The preferred cross-device energy boundary is the **same external AC wall-power meter** used for both laptops. Before data collection, the meter model, sampling/logging method, resolution, stated accuracy, synchronization procedure, and measured boundary will be documented. Both gross wall energy and energy above an independently measured idle baseline will be reported while charger, battery, display, network, and power-mode conditions are controlled.
 
-Absolute energy values will be compared across devices only if their measurement boundaries are sufficiently equivalent. If they are not, the paper will emphasize within-device energy ratios and treat direct absolute Windows-versus-macOS energy comparison as a limitation. Latency, throughput, quality, and feasibility can still be compared under matched workloads.
+CodeCarbon/Windows EMI and the validated macOS telemetry source will be retained as diagnostic measurements and used to identify component behavior and throttling. The paper will state whether each source is measured or modeled and whether it covers CPU/package, SoC components, or the whole device.
 
-### 6.6 Empirical Deliverables
+If a suitable common external meter is unavailable, GreenInfer will **not rank the two laptops by absolute energy or carbon**. It will compare absolute energy only within each device, report within-device model energy ratios, and restrict cross-device comparison to quality, latency, throughput, memory behavior, and feasibility. This fallback measurement mode must be declared before final data collection.
 
-* **Table 1:** Device and software configuration, including telemetry source and measurement boundary.
-* **Table 2:** Per-device quality, latency, throughput, energy, and carbon metrics for every model–task configuration.
-* **Figure 1:** Energy per 1,000 output tokens across model sizes, separated by device.
-* **Figure 2:** A quality–carbon Pareto frontier for each task and device.
-* **Figure 3:** Windows-versus-macOS latency, throughput, and model-feasibility comparison.
-* **Scenario analysis:** Annualized energy, carbon, and cost savings reported separately for each device and workload assumption.
+Carbon will be calculated after measurement as:
+
+\[
+\text{gCO}_2\text{eq}=\text{energy}_{\text{kWh}}\times\text{grid intensity}_{\text{gCO}_2\text{eq}/\text{kWh}}
+\]
+
+The grid-factor source, geography, publication year, accounting basis, and electricity-price assumption will be cited. Auto-geolocated or silent fallback emission factors will not be used for the matched scenario.
+
+### 6.8 Sampling and Statistical Analysis Plan
+
+The three measured blocks are technical repetitions; they do not turn two laptops into representative samples of Windows and Mac populations. Analysis will therefore use estimation rather than a population-level “Windows vs. Mac” significance claim.
+
+* Report every trial plus mean, median, standard deviation, p95 where relevant, and 95% confidence intervals.
+* Use paired within-device model ratios for energy and latency, preserving the randomized block structure.
+* Use bootstrap confidence intervals over examples for Accuracy, SQuAD EM/F1, ROUGE, and Pass@1; report the uncertainty caused by the 50-example subsets.
+* If the pilot coefficient of variation for batch energy or latency exceeds 5%, expand every affected configuration from three to five measured blocks under the same protocol.
+* Compute non-dominated quality–energy Pareto points separately for each task and device. Do not average incompatible task-quality scales into one score.
+* Report energy per correct answer only for tasks where correctness is well defined, together with the underlying success and failure counts.
+
+### 6.9 Threats to Validity
+
+The final paper will explicitly discuss:
+
+* **External validity:** one physical unit per platform supports a two-device case study, not general Windows/macOS conclusions.
+* **Construct validity:** software telemetry may have different boundaries; direct energy ranking requires the common external meter.
+* **Internal validity:** devices differ simultaneously in ISA, CPU/GPU acceleration, memory architecture, cooling, OS, and power management, so observed differences are whole-stack effects.
+* **Model confounding:** the matched Qwen family supports the primary size analysis; heterogeneous secondary models do not isolate parameter count.
+* **Benchmark validity:** public tasks may occur in model training data; model release dates, model-card decontamination claims, and contamination risk will be reported.
+* **Sampling and truncation:** fixed 50-example subsets have wide uncertainty and must not be represented as full benchmark scores; required source evidence will not be truncated away.
+* **Thermal and order effects:** warm-up, settling, randomized blocks, and throttling records reduce but do not eliminate these effects.
+* **Carbon uncertainty:** emissions depend on the chosen grid factor, time/geography, and energy boundary rather than hardware alone.
+
+### 6.10 Reproducibility Package
+
+Subject to dataset and model licenses, the project will release:
+
+* the Git commit, environment/lock files, Python and dependency versions, OS/runtime versions, and analysis environment;
+* exact model tags, digests/hashes, quantization details, runtime settings, and backend allocation;
+* versioned prompt templates, decoding configuration, dataset revision, fixed sample manifest, and manifest checksum;
+* per-example raw responses, error categories, token/timing fields, and offline quality scores;
+* per-trial raw and summarized telemetry, idle-baseline measurements, meter metadata, and run-order log;
+* analysis scripts that regenerate every table, confidence interval, feasibility classification, and Pareto figure.
+
+The released metadata will use study device IDs and will exclude personal identifiers and secrets.
+
+### 6.11 Empirical Deliverables
+
+* **Table 1:** Device, software, model-artifact, backend, power-state, and telemetry configuration.
+* **Table 2:** Per-device quality, latency, throughput, memory, reliability, energy, and carbon results with uncertainty.
+* **Table 3:** Feasible, constrained, and infeasible model configurations with failure evidence.
+* **Figure 1:** Energy per query and per 1,000 tokens across primary matched-family model sizes, separated by device.
+* **Figure 2:** Computed quality–energy Pareto frontier for each task and device.
+* **Figure 3:** Windows-laptop versus M1-Mac latency, throughput, memory, and feasibility case-study comparison.
+* **Scenario analysis:** Annualized energy, carbon, and cost savings reported separately for each device, workload assumption, and quality threshold.
+* **Reproducibility archive:** Sample manifest, configurations, raw outputs, raw telemetry, and analysis materials needed to reproduce the paper.
 
 ---
 
@@ -174,15 +241,16 @@ Absolute energy values will be compared across devices only if their measurement
 
 All numerical outcomes below are hypotheses; final claims will be based on the measured results.
 
-### Contribution 1: Reproducible Cross-Platform Consumer-Hardware Benchmark
-GreenInfer will provide a device-stratified benchmark of task quality, energy, carbon, latency, throughput, and model feasibility for six quantized language models on a Windows x64/AMD laptop and an Apple Silicon/macOS laptop.
+### Contribution 1: Reproducible Cross-Platform Consumer-Hardware Case Study
+GreenInfer will provide a device-stratified case study of task quality, energy, carbon, latency, throughput, memory behavior, and model feasibility for a matched Qwen-2.5 scaling family on one Windows x64/AMD laptop and one Apple Silicon/macOS laptop. Any heterogeneous secondary models will be reported separately as practical deployment candidates.
 
 ### Contribution 2: Device-Specific Task–Model Pareto Frontiers
 The experiment will test whether:
 - 0.5B–1.5B models are sufficient for low-complexity classification tasks;
-- 3B–3.8B models form a favorable quality–energy trade-off for question answering and summarization;
-- 7B–8B models provide enough additional code-generation quality to justify their resource cost;
-- the optimal model-size “knee” changes between `ABU_BAKAR_LAP` and the M1 MacBook Air.
+- the matched 3B model provides a favorable quality–energy trade-off for question answering and summarization;
+- the matched 7B model provides enough additional quality to justify its resource cost where it is feasible;
+- the optimal model-size “knee” changes between `ABU_BAKAR_LAP` and the M1 MacBook Air;
+- heterogeneous secondary models change the practical deployment choice without being mistaken for a controlled parameter-scaling result.
 
 ### Contribution 3: Platform Feasibility and Telemetry Guidance
 The study will document the practical consequences of conventional RAM versus unified memory, differing inference backends, memory pressure, swap/page-file use, and telemetry boundaries. Conclusions will distinguish measured evidence from platform limitations.
@@ -198,10 +266,10 @@ The study will translate device-specific energy measurements into clearly scoped
 |:---:|:---|:---|:---:|
 | **§1** | **Introduction** | Green AI motivation, consumer/cross-platform gap, RQs, contributions | 0.9 page |
 | **§2** | **Related Work** | Green AI, SLMs, local inference, energy profiling, telemetry comparability | 0.8 page |
-| **§3** | **Experimental Methodology** | Both device specifications, existing datasets, model controls, backends, telemetry validation | 1.3 pages |
-| **§4** | **Empirical Results & Analysis** | Per-device scaling, Pareto curves, feasibility, and Windows–macOS comparison | 1.7 pages |
-| **§5** | **Discussion & Green Guidelines** | SLM-first routing, platform effects, grid scenarios, threats to validity | 0.8 page |
-| **§6** | **Conclusion & Future Work** | Evidence-based findings and future external-meter/multi-device validation | 0.5 page |
+| **§3** | **Experimental Methodology** | Scope boundary, devices, fixed sample manifest, matched model family, feasibility rules, energy protocol, statistics | 1.5 pages |
+| **§4** | **Empirical Results & Analysis** | Per-device scaling, uncertainty, Pareto curves, feasibility, and two-device case-study comparison | 1.6 pages |
+| **§5** | **Discussion & Green Guidelines** | SLM-first routing, whole-stack effects, grid scenarios, threats to validity | 0.8 page |
+| **§6** | **Conclusion & Future Work** | Evidence-based findings and future multi-device replication | 0.4 page |
 | **§7** | **References** | 20–25 peer-reviewed citations | End of paper |
 
 ---
@@ -210,14 +278,14 @@ The study will translate device-specific energy measurements into clearly scoped
 
 | Day | Core focus | Deliverable |
 |:---:|:---|:---|
-| **Day 1** | Two-device setup | Record OS/runtime/backend details; download and cache samples from the four existing datasets; pull identical model artifacts |
-| **Day 2** | Pilot and telemetry validation | Test the 0.5B model on both devices; verify metric boundaries, CSV attribution, prompts, quality scoring, and repeatability |
-| **Day 3** | Small-model experiments | Run 0.5B and 1.5B configurations on both devices, three measured trials each |
-| **Day 4** | Medium-model experiments | Run 3B and 3.8B configurations on both devices, three measured trials each |
-| **Day 5** | Large-model feasibility and experiments | Pilot 7B/8B memory feasibility, then run valid configurations; record swap, failures, or constraints explicitly |
-| **Day 6** | Device-stratified analysis | Validate data; generate per-device tables, Pareto plots, and Windows–macOS comparisons |
-| **Day 7** | Paper drafting | Draft introduction, related work, methodology, results, discussion, and limitations |
-| **Day 8** | Audit and polishing | Verify platform attribution and claims; review statistics, figures, citations, and final IEEE PDF |
+| **Day 1** | Freeze study inputs | Record OS/runtime/backend details; create the fixed dataset manifest; freeze Qwen artifacts, prompts, settings, and checksums |
+| **Day 2** | Pilot and measurement decision | Test 0.5B on both devices; validate the common wall meter or declare the within-device fallback; verify scoring and feasibility thresholds |
+| **Day 3** | Small-model randomized blocks | Run matched Qwen 0.5B and 1.5B configurations on both devices, three measured blocks each |
+| **Day 4** | Medium/large matched-family blocks | Run matched Qwen 3B and pilot/run 7B under the preregistered feasibility rules |
+| **Day 5** | Secondary candidates and reruns | Test selected Llama/Phi/Mistral candidates; expand high-variance cells to five blocks; record constrained/infeasible outcomes |
+| **Day 6** | Device-stratified analysis | Score saved outputs offline; calculate uncertainty, feasibility classes, Pareto frontiers, and scoped two-device comparisons |
+| **Day 7** | Paper and reproducibility package | Draft all sections and assemble manifests, configurations, raw outputs/telemetry, and analysis materials |
+| **Day 8** | Audit and polishing | Verify scope, platform attribution, statistics, threats to validity, reproducibility, citations, and final IEEE PDF |
 
 ---
 
